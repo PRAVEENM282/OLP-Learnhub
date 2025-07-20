@@ -17,6 +17,7 @@ const courses = require('./routes/courses');
 const enrollments = require('./routes/enrollments');
 const admin = require('./routes/admin');
 const upload = require('./routes/upload');
+const certificates = require('./routes/certificates');
 
 // Error handling middleware
 const { errorHandler, notFound } = require('./middleware/errorMiddleware');
@@ -64,15 +65,56 @@ app.use('/api/courses', courses);
 app.use('/api/enroll', enrollments);
 app.use('/api/admin', admin);
 app.use('/api/upload', upload);
+app.use('/api/certificates', certificates);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'OLP Backend is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test database connection
+    const mongoose = require('mongoose');
+    const dbState = mongoose.connection.readyState;
+    
+    let dbStatus = 'unknown';
+    switch (dbState) {
+      case 0: dbStatus = 'disconnected'; break;
+      case 1: dbStatus = 'connected'; break;
+      case 2: dbStatus = 'connecting'; break;
+      case 3: dbStatus = 'disconnecting'; break;
+    }
+
+    // Test basic database operations
+    const User = require('./models/User');
+    const Course = require('./models/Course');
+    const Enrollment = require('./models/Enrollment');
+
+    const userCount = await User.countDocuments();
+    const courseCount = await Course.countDocuments();
+    const enrollmentCount = await Enrollment.countDocuments();
+
+    res.json({
+      success: true,
+      message: 'OLP Backend is running',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      database: {
+        status: dbStatus,
+        state: dbState,
+        collections: {
+          users: userCount,
+          courses: courseCount,
+          enrollments: enrollmentCount
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Backend health check failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // API documentation endpoint
@@ -114,6 +156,10 @@ app.get('/api', (req, res) => {
         'GET /api/admin/courses': 'Get all courses (Admin)',
         'DELETE /api/admin/courses/:id': 'Delete course (Admin)',
         'GET /api/admin/dashboard': 'Get dashboard stats (Admin)'
+      },
+      certificates: {
+        'GET /api/certificates/:id/download': 'Download certificate PDF (Private)',
+        'GET /api/certificates/verify/:code': 'Verify certificate (Public)'
       }
     }
   });

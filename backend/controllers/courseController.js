@@ -161,7 +161,7 @@ const updateCourse = async (req, res) => {
         C_thumbnail: req.file ? req.file.path : course.C_thumbnail
       },
       { new: true, runValidators: true }
-    );
+    ).populate('userID', 'name email');
 
     res.json({
       success: true,
@@ -198,7 +198,7 @@ const deleteCourse = async (req, res) => {
       });
     }
 
-    await course.remove();
+    await Course.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,

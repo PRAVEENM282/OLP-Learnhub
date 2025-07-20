@@ -6,7 +6,8 @@ const {
   getCourseProgress,
   completeSection,
   getCertificate,
-  unenrollFromCourse
+  unenrollFromCourse,
+  testCertificateGeneration
 } = require('../controllers/enrollmentController');
 const { protect, authorizeStudent, authorizeTeacherOrAdmin } = require('../middleware/authMiddleware');
 
@@ -23,6 +24,9 @@ router.post('/progress/:courseId/section/:sectionId/complete', authorizeStudent,
 
 // Certificate routes (students only)
 router.get('/certificate/:courseId', authorizeStudent, getCertificate);
+
+// Test certificate generation (for debugging)
+router.post('/test-certificate/:courseId', authorizeStudent, testCertificateGeneration);
 
 // My courses route (accessible by both students and teachers)
 router.get('/mycourses', getMyCourses);

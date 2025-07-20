@@ -7,7 +7,8 @@ const {
   deleteUser,
   getAdminCourses,
   deleteAdminCourse,
-  getDashboardStats
+  getDashboardStats,
+  getEnrollmentRecords
 } = require('../controllers/adminController');
 const { protect, authorizeAdmin } = require('../middleware/authMiddleware');
 
@@ -23,6 +24,9 @@ router.delete('/users/:id', deleteUser);
 // Course management routes
 router.get('/courses', getAdminCourses);
 router.delete('/courses/:id', deleteAdminCourse);
+
+// Enrollment management routes
+router.get('/enrollments', getEnrollmentRecords);
 
 // Dashboard routes
 router.get('/dashboard', getDashboardStats);

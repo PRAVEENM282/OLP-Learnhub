@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Table, Modal, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
-import { coursesAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Helmet } from 'react-helmet-async';
-import toast from 'react-hot-toast';
 
 const TeacherCourses = () => {
   const { user } = useAuth();
@@ -23,11 +20,10 @@ const TeacherCourses = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const response = await coursesAPI.getTeacherCourses();
+      const response = await api.get('/courses/teacher/courses');
       setCourses(response.data.data);
     } catch (error) {
       console.error('Error fetching courses:', error);
-      toast.error('Failed to load your courses');
     } finally {
       setLoading(false);
     }
@@ -41,14 +37,12 @@ const TeacherCourses = () => {
   const handleDeleteConfirm = async () => {
     try {
       setDeleting(true);
-      await coursesAPI.deleteCourse(courseToDelete._id);
-      toast.success('Course deleted successfully');
+      await api.delete(`/courses/teacher/course/${courseToDelete._id}`);
       setShowDeleteModal(false);
       setCourseToDelete(null);
       fetchCourses(); // Refresh the list
     } catch (error) {
       console.error('Error deleting course:', error);
-      toast.error(error.response?.data?.message || 'Failed to delete course');
     } finally {
       setDeleting(false);
     }
@@ -56,20 +50,20 @@ const TeacherCourses = () => {
 
   const getStatusBadge = (status) => {
     const colors = {
-      published: 'success',
-      draft: 'secondary',
-      archived: 'danger'
+      published: 'bg-success',
+      draft: 'bg-secondary',
+      archived: 'bg-danger'
     };
-    return <Badge bg={colors[status] || 'secondary'}>{status || 'draft'}</Badge>;
+    return <span className={`badge ${colors[status] || 'bg-secondary'}`}>{status || 'draft'}</span>;
   };
 
   const getLevelBadge = (level) => {
     const colors = {
-      beginner: 'success',
-      intermediate: 'warning',
-      advanced: 'danger'
+      beginner: 'bg-success',
+      intermediate: 'bg-warning',
+      advanced: 'bg-danger'
     };
-    return <Badge bg={colors[level]}>{level}</Badge>;
+    return <span className={`badge ${colors[level]}`}>{level}</span>;
   };
 
   const formatPrice = (price) => {
@@ -85,208 +79,181 @@ const TeacherCourses = () => {
   }
 
   return (
-    <>
-      <Helmet>
-        <title>My Courses - Teacher Dashboard</title>
-      </Helmet>
-
-      <Container className="py-5">
+    <div className="container py-4">
         {/* Header */}
-        <Row className="mb-4">
-          <Col>
-            <h1 className="display-5 fw-bold mb-2">My Courses</h1>
-            <p className="lead text-muted">
+      <div className="row mb-4">
+        <div className="col">
+          <h1 className="h2 mb-2">My Courses</h1>
+          <p className="text-muted">
               Manage and track all your created courses
             </p>
-          </Col>
-          <Col xs="auto">
-            <Button
-              as={Link}
-              to="/teacher/create-course"
-              variant="primary"
-              size="lg"
+        </div>
+        <div className="col-auto">
+          <Link
+            to="/teacher/course/create"
+            className="btn btn-primary"
             >
               <i className="fas fa-plus me-2"></i>
               Create New Course
-            </Button>
-          </Col>
-        </Row>
+          </Link>
+        </div>
+      </div>
 
         {/* Stats */}
-        <Row className="mb-4">
-          <Col md={3}>
-            <Card className="border-0 shadow-sm text-center">
-              <Card.Body>
+      <div className="row mb-4">
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
                 <h3 className="text-primary mb-1">{courses.length}</h3>
                 <p className="text-muted mb-0">Total Courses</p>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={3}>
-            <Card className="border-0 shadow-sm text-center">
-              <Card.Body>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
                 <h3 className="text-success mb-1">
-                  {courses.filter(course => course.status === 'published').length}
+                {courses.filter(course => course.isPublished).length}
                 </h3>
                 <p className="text-muted mb-0">Published</p>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={3}>
-            <Card className="border-0 shadow-sm text-center">
-              <Card.Body>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
                 <h3 className="text-warning mb-1">
-                  {courses.filter(course => course.status === 'draft').length}
+                {courses.filter(course => !course.isPublished).length}
                 </h3>
                 <p className="text-muted mb-0">Drafts</p>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={3}>
-            <Card className="border-0 shadow-sm text-center">
-              <Card.Body>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
                 <h3 className="text-info mb-1">
-                  {courses.reduce((total, course) => total + (course.totalEnrollments || 0), 0)}
+                {courses.reduce((total, course) => total + (course.enrolled?.length || 0), 0)}
                 </h3>
                 <p className="text-muted mb-0">Total Students</p>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Courses Table */}
-        <Row>
-          <Col>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="p-0">
+      {/* Courses Grid */}
+      <div className="row">
                 {courses.length === 0 ? (
-                  <div className="text-center py-5">
+          <div className="col-12">
+            <div className="card text-center py-5">
+              <div className="card-body">
                     <i className="fas fa-book text-muted mb-3" style={{ fontSize: '3rem' }}></i>
                     <h4>No courses created yet</h4>
                     <p className="text-muted mb-4">
                       Start your teaching journey by creating your first course
                     </p>
-                    <Button
-                      as={Link}
-                      to="/teacher/create-course"
-                      variant="primary"
-                      size="lg"
+                <Link
+                  to="/teacher/course/create"
+                  className="btn btn-primary"
                     >
                       <i className="fas fa-plus me-2"></i>
                       Create Your First Course
-                    </Button>
+                </Link>
+              </div>
+            </div>
                   </div>
                 ) : (
-                  <div className="table-responsive">
-                    <Table className="mb-0">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Course</th>
-                          <th>Status</th>
-                          <th>Level</th>
-                          <th>Price</th>
-                          <th>Students</th>
-                          <th>Sections</th>
-                          <th>Created</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {courses.map(course => (
-                          <tr key={course._id}>
-                            <td>
-                              <div className="d-flex align-items-center">
-                                <img
-                                  src={course.C_thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=50&h=30&fit=crop'}
+          courses.map(course => (
+            <div key={course._id} className="col-lg-4 col-md-6 mb-4">
+              <div className="card h-100 course-card">
+                {course.C_thumbnail && (
+                  <img
+                    src={course.C_thumbnail}
+                    className="card-img-top course-thumbnail"
                                   alt={course.C_title}
-                                  className="rounded me-3"
-                                  style={{ width: '50px', height: '30px', objectFit: 'cover' }}
-                                />
-                                <div>
-                                  <div className="fw-bold">{course.C_title}</div>
+                  />
+                )}
+                <div className="card-body d-flex flex-column">
+                  <div className="mb-2">
+                    {getStatusBadge(course.isPublished ? 'published' : 'draft')}
+                    {getLevelBadge(course.C_level)}
+                  </div>
+                  
+                  <h5 className="card-title">{course.C_title}</h5>
+                  <p className="card-text text-muted flex-grow-1">
+                    {course.C_description.substring(0, 80)}...
+                  </p>
+                  
+                  <div className="mt-auto">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
                                   <small className="text-muted">
-                                    {course.C_description.length > 50
-                                      ? `${course.C_description.substring(0, 50)}...`
-                                      : course.C_description}
+                        {course.enrolled?.length || 0} students
                                   </small>
+                      <span className="fw-bold text-primary">
+                        {formatPrice(course.C_price)}
+                      </span>
                                 </div>
-                              </div>
-                            </td>
-                            <td>{getStatusBadge(course.status)}</td>
-                            <td>{getLevelBadge(course.C_level)}</td>
-                            <td className="fw-bold">{formatPrice(course.C_price)}</td>
-                            <td>
-                              <div className="text-center">
-                                <div className="fw-bold">{course.totalEnrollments || 0}</div>
-                                <small className="text-muted">enrolled</small>
-                              </div>
-                            </td>
-                            <td>
-                              <div className="text-center">
-                                <div className="fw-bold">{course.totalSections || 0}</div>
-                                <small className="text-muted">sections</small>
-                              </div>
-                            </td>
-                            <td>{formatDate(course.createdAt)}</td>
-                            <td>
-                              <div className="d-flex gap-1">
-                                <Button
-                                  variant="outline-primary"
-                                  size="sm"
-                                  onClick={() => navigate(`/teacher/course/${course._id}/sections`)}
+                    
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-primary btn-sm flex-fill"
+                        onClick={() => navigate(`/teacher/course/${course._id}/edit`)}
                                 >
-                                  <i className="fas fa-edit"></i>
-                                </Button>
-                                <Button
-                                  variant="outline-success"
-                                  size="sm"
+                        <i className="fas fa-edit me-2"></i>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-outline-secondary btn-sm flex-fill"
                                   onClick={() => navigate(`/teacher/course/${course._id}/students`)}
                                 >
-                                  <i className="fas fa-users"></i>
-                                </Button>
-                                <Button
-                                  variant="outline-warning"
-                                  size="sm"
-                                  onClick={() => navigate(`/teacher/course/${course._id}/edit`)}
-                                >
-                                  <i className="fas fa-cog"></i>
-                                </Button>
-                                <Button
-                                  variant="outline-danger"
-                                  size="sm"
+                        <i className="fas fa-users me-2"></i>
+                        Students
+                      </button>
+                    </div>
+                    
+                    <button
+                      className="btn btn-outline-danger btn-sm w-100 mt-2"
                                   onClick={() => handleDeleteClick(course)}
                                 >
-                                  <i className="fas fa-trash"></i>
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
+                      <i className="fas fa-trash me-2"></i>
+                      Delete
+                    </button>
                   </div>
-                )}
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Delete Confirmation Modal */}
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Delete</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Are you sure you want to delete the course "{courseToDelete?.C_title}"? 
-          This action cannot be undone and will affect all enrolled students.
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+      {showDeleteModal && (
+        <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Delete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowDeleteModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete "{courseToDelete?.C_title}"?</p>
+                <p className="text-muted">This action cannot be undone.</p>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowDeleteModal(false)}
+                >
             Cancel
-          </Button>
-          <Button 
-            variant="danger" 
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
             onClick={handleDeleteConfirm}
             disabled={deleting}
           >
@@ -298,10 +265,18 @@ const TeacherCourses = () => {
             ) : (
               'Delete Course'
             )}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Backdrop */}
+      {showDeleteModal && (
+        <div className="modal-backdrop fade show"></div>
+      )}
+    </div>
   );
 };
 

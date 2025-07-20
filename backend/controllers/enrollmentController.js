@@ -2,6 +2,7 @@ const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const Certificate = require('../models/Certificate');
+const generateCertificate = require('../utils/generateCertificate');
 
 // @desc    Enroll in a course
 // @route   POST /api/enroll/:courseId
@@ -74,9 +75,6 @@ const enrollInCourse = async (req, res) => {
 // @access  Private/Student or Teacher
 const getMyCourses = async (req, res) => {
   try {
-    console.log('User type:', req.user.type);
-    console.log('User ID:', req.user._id);
-    
     let coursesWithProgress = [];
 
     if (req.user.type === 'student') {
@@ -137,8 +135,6 @@ const getMyCourses = async (req, res) => {
       coursesWithProgress = [];
     }
 
-    console.log('Found courses:', coursesWithProgress.length);
-
     res.json({
       success: true,
       data: coursesWithProgress
@@ -153,7 +149,7 @@ const getMyCourses = async (req, res) => {
 };
 
 // @desc    Get course progress
-// @route   GET /api/progress/:courseId
+// @route   GET /api/enroll/progress/:courseId
 // @access  Private/Student
 const getCourseProgress = async (req, res) => {
   try {
@@ -216,7 +212,7 @@ const getCourseProgress = async (req, res) => {
 };
 
 // @desc    Mark section as completed
-// @route   POST /api/progress/:courseId/section/:sectionId/complete
+// @route   POST /api/enroll/progress/:courseId/section/:sectionId/complete
 // @access  Private/Student
 const completeSection = async (req, res) => {
   try {
@@ -240,22 +236,54 @@ const completeSection = async (req, res) => {
     
     // Update progress
     const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+    
     enrollment.progress = enrollment.calculateProgress(course);
 
     // Check if course is completed
     if (enrollment.progress === 100 && enrollment.status === 'active') {
+      console.log('Course completed! Progress:', enrollment.progress, 'Status:', enrollment.status);
       enrollment.status = 'completed';
       
-      // Generate certificate
-      const certificate = await Certificate.create({
-        studentID: req.user._id,
-        courseID: courseId,
-        enrollmentID: enrollment._id,
-        completionDate: new Date()
-      });
+      try {
+        console.log('Creating certificate for course:', courseId);
+        // Generate certificate
+        const certificate = await Certificate.create({
+          studentID: req.user._id,
+          courseID: courseId,
+          enrollmentID: enrollment._id,
+          completionDate: new Date(),
+          grade: calculateGrade(enrollment.progress)
+        });
 
-      enrollment.certificateIssued = true;
-      enrollment.certificateID = certificate._id;
+        console.log('Certificate created successfully:', certificate._id);
+        enrollment.certificateIssued = true;
+        enrollment.certificateID = certificate._id;
+
+        // Generate certificate PDF (don't block the response if it fails)
+        console.log('Generating certificate PDF...');
+        generateCertificate(certificate._id)
+          .then(certificateURL => {
+            console.log('Certificate PDF generated:', certificateURL);
+            certificate.certificateURL = certificateURL;
+            certificate.save().catch(err => {
+              console.error('Error saving certificate URL:', err);
+            });
+          })
+          .catch(certError => {
+            console.error('Certificate generation error:', certError);
+          });
+      } catch (certError) {
+        console.error('Error creating certificate:', certError);
+        // Don't fail the section completion if certificate creation fails
+      }
+    } else {
+      console.log('Course not completed yet. Progress:', enrollment.progress, 'Status:', enrollment.status);
     }
 
     await enrollment.save();
@@ -263,29 +291,28 @@ const completeSection = async (req, res) => {
     res.json({
       success: true,
       data: {
-        progress: enrollment.progress,
-        status: enrollment.status,
-        certificateIssued: enrollment.certificateIssued
+        enrollment,
+        courseCompleted: enrollment.status === 'completed'
       }
     });
   } catch (error) {
     console.error('Complete section error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error while completing section'
     });
   }
 };
 
-// @desc    Get certificate for completed course
-// @route   GET /api/certificate/:courseId
+// @desc    Get course certificate
+// @route   GET /api/enroll/certificate/:courseId
 // @access  Private/Student
 const getCertificate = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({
       studentID: req.user._id,
       courseID: req.params.courseId
-    }).populate('certificateID courseID', 'certificateNumber dateIssued C_title C_educator');
+    }).populate('certificateID');
 
     if (!enrollment) {
       return res.status(404).json({
@@ -294,10 +321,10 @@ const getCertificate = async (req, res) => {
       });
     }
 
-    if (!enrollment.certificateIssued) {
+    if (!enrollment.certificateIssued || !enrollment.certificateID) {
       return res.status(400).json({
         success: false,
-        message: 'Course not completed yet'
+        message: 'Certificate not yet issued'
       });
     }
 
@@ -331,7 +358,7 @@ const unenrollFromCourse = async (req, res) => {
       });
     }
 
-    // Remove from course enrolled list
+    // Remove student from course enrolled list
     const course = await Course.findById(req.params.courseId);
     if (course) {
       course.enrolled = course.enrolled.filter(
@@ -342,7 +369,7 @@ const unenrollFromCourse = async (req, res) => {
     }
 
     // Delete enrollment
-    await enrollment.remove();
+    await Enrollment.findByIdAndDelete(enrollment._id);
 
     res.json({
       success: true,
@@ -357,11 +384,103 @@ const unenrollFromCourse = async (req, res) => {
   }
 };
 
+// @desc    Test certificate generation (for debugging)
+// @route   POST /api/enroll/test-certificate/:courseId
+// @access  Private/Student
+const testCertificateGeneration = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    const enrollment = await Enrollment.findOne({
+      studentID: req.user._id,
+      courseID: courseId
+    });
+
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enrollment not found'
+      });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+
+    console.log('Test certificate generation for course:', courseId);
+    console.log('Enrollment status:', enrollment.status);
+    console.log('Enrollment progress:', enrollment.progress);
+    console.log('Completed sections:', enrollment.completedSections.length);
+    console.log('Total course sections:', course.sections.length);
+
+    // Force completion and certificate generation
+    enrollment.status = 'completed';
+    enrollment.progress = 100;
+    
+    try {
+      console.log('Creating certificate...');
+      const certificate = await Certificate.create({
+        studentID: req.user._id,
+        courseID: courseId,
+        enrollmentID: enrollment._id,
+        completionDate: new Date(),
+        grade: calculateGrade(100)
+      });
+
+      console.log('Certificate created:', certificate._id);
+      enrollment.certificateIssued = true;
+      enrollment.certificateID = certificate._id;
+
+      await enrollment.save();
+
+      res.json({
+        success: true,
+        message: 'Certificate generated successfully',
+        certificateId: certificate._id
+      });
+    } catch (certError) {
+      console.error('Certificate creation error:', certError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create certificate',
+        error: certError.message
+      });
+    }
+  } catch (error) {
+    console.error('Test certificate generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// Helper function to calculate grade based on progress
+const calculateGrade = (progress) => {
+  if (progress >= 95) return 'A+';
+  if (progress >= 90) return 'A';
+  if (progress >= 85) return 'A-';
+  if (progress >= 80) return 'B+';
+  if (progress >= 75) return 'B';
+  if (progress >= 70) return 'B-';
+  if (progress >= 65) return 'C+';
+  if (progress >= 60) return 'C';
+  if (progress >= 55) return 'C-';
+  if (progress >= 50) return 'D+';
+  if (progress >= 45) return 'D';
+  return 'F';
+};
+
 module.exports = {
   enrollInCourse,
   getMyCourses,
   getCourseProgress,
   completeSection,
   getCertificate,
-  unenrollFromCourse
+  unenrollFromCourse,
+  testCertificateGeneration
 }; 

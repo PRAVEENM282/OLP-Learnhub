@@ -1,55 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge, Button, Form, Alert, Modal } from 'react-bootstrap';
-import { adminAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { Helmet } from 'react-helmet-async';
-import toast from 'react-hot-toast';
 
 const CourseManagement = () => {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    search: '',
-    status: '',
-    teacher: '',
-    page: 1,
-    limit: 10
-  });
-  const [pagination, setPagination] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedTeacher, setSelectedTeacher] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState(null);
 
   useEffect(() => {
     fetchCourses();
-  }, [filters]);
+  }, []);
 
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getAdminCourses(filters);
+      const response = await api.get('/admin/courses');
       setCourses(response.data.data);
-      setPagination(response.data.pagination);
     } catch (error) {
       console.error('Error fetching courses:', error);
-      toast.error('Failed to load courses');
+      alert('Failed to load courses');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFilterChange = (name, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [name]: value,
-      page: 1
-    }));
-  };
-
-  const handlePageChange = (page) => {
-    setFilters(prev => ({
-      ...prev,
-      page
-    }));
   };
 
   const handleDeleteClick = (course) => {
@@ -59,34 +37,33 @@ const CourseManagement = () => {
 
   const handleDeleteConfirm = async () => {
     try {
-      await adminAPI.deleteAdminCourse(courseToDelete._id);
-      toast.success('Course deleted successfully');
+      await api.delete(`/admin/courses/${courseToDelete._id}`);
+      alert('Course deleted successfully');
       setShowDeleteModal(false);
       setCourseToDelete(null);
       fetchCourses();
     } catch (error) {
       console.error('Error deleting course:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to delete course';
-      toast.error(errorMessage);
+      alert('Failed to delete course');
     }
   };
 
   const getStatusBadge = (status) => {
     const colors = {
-      published: 'success',
-      draft: 'secondary',
-      archived: 'danger'
+      published: 'bg-success',
+      draft: 'bg-secondary',
+      archived: 'bg-danger'
     };
-    return <Badge bg={colors[status] || 'secondary'}>{status || 'draft'}</Badge>;
+    return <span className={`badge ${colors[status] || 'bg-secondary'}`}>{status || 'draft'}</span>;
   };
 
   const getLevelBadge = (level) => {
     const colors = {
-      beginner: 'success',
-      intermediate: 'warning',
-      advanced: 'danger'
+      beginner: 'bg-success',
+      intermediate: 'bg-warning',
+      advanced: 'bg-danger'
     };
-    return <Badge bg={colors[level]}>{level}</Badge>;
+    return <span className={`badge ${colors[level]}`}>{level}</span>;
   };
 
   const formatPrice = (price) => {
@@ -97,243 +74,257 @@ const CourseManagement = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const filteredCourses = courses.filter(course => {
+    const matchesSearch = course.C_title?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = !selectedStatus || course.isPublished === (selectedStatus === 'published');
+    const matchesTeacher = !selectedTeacher || course.C_educator?.toLowerCase().includes(selectedTeacher.toLowerCase());
+    return matchesSearch && matchesStatus && matchesTeacher;
+  });
+
   if (loading) {
     return <LoadingSpinner text="Loading courses..." />;
   }
 
   return (
-    <>
-      <Helmet>
-        <title>Course Management - Admin Dashboard</title>
-      </Helmet>
+    <div className="container py-4">
+      {/* Header */}
+      <div className="row mb-4">
+        <div className="col">
+          <h1 className="h2 mb-2">Course Management</h1>
+          <p className="text-muted">
+            Manage all courses on the platform
+          </p>
+        </div>
+        <div className="col-auto">
+          <button
+            className="btn btn-outline-secondary"
+            onClick={() => navigate('/admin/dashboard')}
+          >
+            <i className="fas fa-arrow-left me-2"></i>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
 
-      <Container className="py-5">
-        {/* Header */}
-        <Row className="mb-4">
-          <Col>
-            <h1 className="display-5 fw-bold mb-2">Course Management</h1>
-            <p className="lead text-muted">
-              Manage all courses on the platform
-            </p>
-          </Col>
-        </Row>
+      {/* Stats */}
+      <div className="row mb-4">
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
+              <h3 className="text-primary mb-1">{courses.length}</h3>
+              <p className="text-muted mb-0">Total Courses</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
+              <h3 className="text-success mb-1">
+                {courses.filter(course => course.isPublished).length}
+              </h3>
+              <p className="text-muted mb-0">Published</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
+              <h3 className="text-warning mb-1">
+                {courses.filter(course => !course.isPublished).length}
+              </h3>
+              <p className="text-muted mb-0">Drafts</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3 mb-3">
+          <div className="card text-center">
+            <div className="card-body">
+              <h3 className="text-info mb-1">
+                {courses.reduce((total, course) => total + (course.enrolled?.length || 0), 0)}
+              </h3>
+              <p className="text-muted mb-0">Total Students</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        {/* Filters */}
-        <Row className="mb-4">
-          <Col>
-            <Card className="border-0 shadow-sm">
-              <Card.Body>
-                <Row>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Label>Search Courses</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder="Search by title..."
-                        value={filters.search}
-                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Label>Status</Form.Label>
-                      <Form.Select
-                        value={filters.status}
-                        onChange={(e) => handleFilterChange('status', e.target.value)}
-                      >
-                        <option value="">All Status</option>
-                        <option value="published">Published</option>
-                        <option value="draft">Draft</option>
-                        <option value="archived">Archived</option>
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                  <Col md={3}>
-                    <Form.Group>
-                      <Form.Label>Teacher</Form.Label>
-                      <Form.Control
-                        type="text"
-                        placeholder="Search by teacher..."
-                        value={filters.teacher}
-                        onChange={(e) => handleFilterChange('teacher', e.target.value)}
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={3} className="d-flex align-items-end">
-                    <Button
-                      variant="outline-secondary"
-                      onClick={() => setFilters({
-                        search: '',
-                        status: '',
-                        teacher: '',
-                        page: 1,
-                        limit: 10
-                      })}
-                      className="w-100"
-                    >
-                      <i className="fas fa-times me-2"></i>
-                      Clear Filters
-                    </Button>
-                  </Col>
-                </Row>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+      {/* Filters */}
+      <div className="row mb-4">
+        <div className="col-md-4 mb-3">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search courses by title..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="col-md-3 mb-3">
+          <select
+            className="form-select"
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option value="">All Status</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+        </div>
+        <div className="col-md-3 mb-3">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search by teacher..."
+            value={selectedTeacher}
+            onChange={(e) => setSelectedTeacher(e.target.value)}
+          />
+        </div>
+        <div className="col-md-2 mb-3">
+          <button
+            className="btn btn-outline-secondary w-100"
+            onClick={() => {
+              setSearchTerm('');
+              setSelectedStatus('');
+              setSelectedTeacher('');
+            }}
+          >
+            <i className="fas fa-times me-2"></i>
+            Clear
+          </button>
+        </div>
+      </div>
 
-        {/* Results Count */}
-        <Row className="mb-4">
-          <Col>
-            <p className="text-muted">
-              Showing {courses.length} of {pagination.total} courses
-            </p>
-          </Col>
-        </Row>
+      {/* Results Count */}
+      <div className="row mb-4">
+        <div className="col">
+          <p className="text-muted">
+            Showing {filteredCourses.length} of {courses.length} courses
+          </p>
+        </div>
+      </div>
 
-        {/* Courses Table */}
-        <Row>
-          <Col>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="p-0">
-                <Table responsive className="mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Course</th>
-                      <th>Teacher</th>
-                      <th>Status</th>
-                      <th>Level</th>
-                      <th>Price</th>
-                      <th>Enrollments</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {courses.map(course => (
-                      <tr key={course._id}>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <img
-                              src={course.C_thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=50&h=30&fit=crop'}
-                              alt={course.C_title}
-                              className="rounded me-3"
-                              style={{ width: '50px', height: '30px', objectFit: 'cover' }}
-                            />
-                            <div>
-                              <div className="fw-bold">{course.C_title}</div>
-                              <small className="text-muted">
-                                {course.C_categories.join(', ')}
-                              </small>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div>
-                            <div className="fw-bold">{course.C_educator}</div>
-                            <small className="text-muted">{course.userID?.email}</small>
-                          </div>
-                        </td>
-                        <td>{getStatusBadge(course.status)}</td>
-                        <td>{getLevelBadge(course.C_level)}</td>
-                        <td>{formatPrice(course.C_price)}</td>
-                        <td>
-                          <div className="text-center">
-                            <div className="fw-bold">{course.totalEnrollments || 0}</div>
-                            <small className="text-muted">students</small>
-                          </div>
-                        </td>
-                        <td>{formatDate(course.createdAt)}</td>
-                        <td>
-                          <div className="d-flex gap-1">
-                            <Button
-                              variant="outline-primary"
-                              size="sm"
-                              href={`/course/${course._id}`}
-                              target="_blank"
-                            >
-                              <i className="fas fa-eye"></i>
-                            </Button>
-                            <Button
-                              variant="outline-danger"
-                              size="sm"
-                              onClick={() => handleDeleteClick(course)}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </Button>
-                          </div>
-                        </td>
+      {/* Courses Table */}
+      <div className="row">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-header">
+              <h5 className="mb-0">Courses</h5>
+            </div>
+            <div className="card-body">
+              {filteredCourses.length === 0 ? (
+                <div className="text-center py-4">
+                  <i className="fas fa-book text-muted mb-3" style={{ fontSize: '3rem' }}></i>
+                  <h5 className="text-muted">No courses found</h5>
+                  <p className="text-muted">Try adjusting your search criteria</p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Course</th>
+                        <th>Teacher</th>
+                        <th>Status</th>
+                        <th>Level</th>
+                        <th>Students</th>
+                        <th>Price</th>
+                        <th>Created</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <Row className="mt-4">
-            <Col>
-              <div className="d-flex justify-content-center">
-                <nav>
-                  <ul className="pagination">
-                    <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
-                      <button
-                        className="page-link"
-                        onClick={() => handlePageChange(pagination.page - 1)}
-                        disabled={pagination.page === 1}
-                      >
-                        Previous
-                      </button>
-                    </li>
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(page => (
-                      <li key={page} className={`page-item ${page === pagination.page ? 'active' : ''}`}>
-                        <button
-                          className="page-link"
-                          onClick={() => handlePageChange(page)}
-                        >
-                          {page}
-                        </button>
-                      </li>
-                    ))}
-                    <li className={`page-item ${pagination.page === pagination.pages ? 'disabled' : ''}`}>
-                      <button
-                        className="page-link"
-                        onClick={() => handlePageChange(pagination.page + 1)}
-                        disabled={pagination.page === pagination.pages}
-                      >
-                        Next
-                      </button>
-                    </li>
-                  </ul>
-                </nav>
-              </div>
-            </Col>
-          </Row>
-        )}
-      </Container>
+                    </thead>
+                    <tbody>
+                      {filteredCourses.map(course => (
+                        <tr key={course._id}>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              {course.C_thumbnail && (
+                                <img
+                                  src={course.C_thumbnail}
+                                  alt={course.C_title}
+                                  className="rounded me-3"
+                                  style={{ width: '50px', height: '30px', objectFit: 'cover' }}
+                                />
+                              )}
+                              <div>
+                                <div className="fw-bold">{course.C_title}</div>
+                                <small className="text-muted">
+                                  {course.C_description?.substring(0, 50)}...
+                                </small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{course.C_educator}</td>
+                          <td>{getStatusBadge(course.isPublished ? 'published' : 'draft')}</td>
+                          <td>{getLevelBadge(course.C_level)}</td>
+                          <td>{course.enrolled?.length || 0}</td>
+                          <td>{formatPrice(course.C_price)}</td>
+                          <td>{formatDate(course.createdAt)}</td>
+                          <td>
+                            <div className="btn-group" role="group">
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                onClick={() => navigate(`/courses/${course._id}`)}
+                              >
+                                <i className="fas fa-eye"></i>
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleDeleteClick(course)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Confirm Delete</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Are you sure you want to delete the course "{courseToDelete?.C_title}"? 
-          This action cannot be undone.
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={handleDeleteConfirm}>
-            Delete Course
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </>
+      {showDeleteModal && (
+        <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Delete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowDeleteModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete course <strong>{courseToDelete?.C_title}</strong>?</p>
+                <p className="text-danger">This action cannot be undone.</p>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowDeleteModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleDeleteConfirm}
+                >
+                  Delete Course
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show"></div>
+        </div>
+      )}
+    </div>
   );
 };
 

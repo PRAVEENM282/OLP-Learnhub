@@ -1,52 +1,222 @@
-# LearnHub
-A full-stack Online Learning Platform using MERN (MongoDB, Express, React, Node) enabling students to enroll in courses, teachers to manage content, and admins to oversee activity. Features include authentication, progress tracking, certification, paid/free courses, and a responsive UI.
-📚 Online Learning Platform using MERN
-This project is a full-fledged Online Learning Platform (OLP) developed using the MERN stack—MongoDB, Express.js, React.js, and Node.js. It aims to replicate the functionality of popular e-learning systems by providing a dynamic and interactive environment for students, teachers, and administrators.
+# LearnHub - Online Learning Platform
 
-👨‍🏫 Overview
-The platform allows teachers to create, manage, and update online courses with multiple sections, while students can register, browse courses by category or name, enroll in free or paid courses, and track their learning progress. Upon completion of a course, students can download a certificate of completion. An admin oversees the platform, managing users and courses, and maintaining the integrity of the system.
+A comprehensive online learning platform built with Node.js, Express, MongoDB, and React. The platform supports role-based access control for students, teachers, and administrators with features like course management, enrollment tracking, progress monitoring, and certificate generation.
 
-💡 Key Features
-User Roles: Admin, Teacher, Student with dedicated dashboards
+## Features
 
-Course Management: Add, delete, update courses and sections
+### 🎓 For Students
+- Browse and enroll in courses
+- Track learning progress
+- Watch video content and read materials
+- Complete course sections
+- Download completion certificates
+- View course history and achievements
 
-Progress Tracking: Resume learning, track modules completed
+### 👨‍🏫 For Teachers
+- Create and manage courses
+- Add course sections and content
+- Upload video materials
+- Track student enrollment and progress
+- View student analytics
+- Manage course settings
 
-Authentication: Secure login and JWT-based authorization
+### 👨‍💼 For Administrators
+- User management (students, teachers, admins)
+- Course oversight and moderation
+- System analytics and reporting
+- Platform health monitoring
+- Enrollment management
 
-Payments: Handle paid course access securely
+### 🔧 Technical Features
+- JWT-based authentication
+- Role-based access control
+- File upload support
+- PDF certificate generation
+- Progress tracking
+- Real-time course updates
+- Responsive design
 
-Responsive UI: Built with React, Bootstrap, and Material UI
+## Tech Stack
 
-🛠️ Tech Stack
-Frontend: React.js, Vite, Bootstrap, Material UI, Axios, Ant Design
+### Backend
+- **Node.js** - Runtime environment
+- **Express.js** - Web framework
+- **MongoDB** - Database
+- **Mongoose** - ODM for MongoDB
+- **JWT** - Authentication
+- **bcryptjs** - Password hashing
+- **multer** - File uploads
+- **PDFKit** - Certificate generation
+- **Helmet** - Security middleware
+- **CORS** - Cross-origin resource sharing
 
-Backend: Node.js, Express.js, MongoDB, Mongoose
+### Frontend
+- **React** - UI library
+- **React Router** - Client-side routing
+- **Axios** - HTTP client
+- **Bootstrap** - CSS framework
+- **React Player** - Video player
+- **React Hot Toast** - Notifications
 
-Authentication: JWT, bcrypt
+## Project Structure
 
-Other Tools: Multer (file uploads), dotenv, nodemon
+```
+Learnhub/
+├── backend/                 # Backend API
+│   ├── config/             # Database configuration
+│   ├── controllers/        # Route controllers
+│   ├── middleware/         # Custom middleware
+│   ├── models/            # MongoDB models
+│   ├── routes/            # API routes
+│   ├── uploads/           # File uploads
+│   ├── utils/             # Utility functions
+│   └── server.js          # Main server file
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/    # Reusable components
+│   │   ├── context/       # React context
+│   │   ├── pages/         # Page components
+│   │   ├── services/      # API services
+│   │   └── index.css      # Global styles
+│   └── package.json
+└── README.md
+```
 
-📁 Project Structure
-frontend/: React client app
+## Installation
 
-backend/: Node/Express API and MongoDB integration
+### Prerequisites
+- Node.js (v14 or higher)
+- MongoDB
+- npm or yarn
 
-🚀 Setup Instructions
-Clone the repository
+### Backend Setup
 
-Install dependencies in both frontend and backend
+1. Navigate to the backend directory:
+```bash
+cd backend
+```
 
-Set up MongoDB and add .env variables (Mongo URI, JWT secret)
+2. Install dependencies:
+```bash
+npm install
+```
 
-Start both frontend and backend servers
+3. Create a `.env` file in the backend directory:
+```env
+NODE_ENV=development
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/learnhub
+JWT_SECRET=your_jwt_secret_key_here
+JWT_EXPIRE=30d
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+```
 
-📌 Application Flow
-Student: Enroll, learn, complete, and get certified
+4. Start the development server:
+```bash
+npm run dev
+```
 
-Teacher: Upload and manage content
+### Frontend Setup
 
-Admin: Full control of courses and users
+1. Navigate to the frontend directory:
+```bash
+cd frontend
+```
 
-This MERN-based OLP serves as a robust foundation for building real-world education platforms, supporting scalability, modularity, and real-time interactions.
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create a `.env` file in the frontend directory:
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+4. Start the development server:
+```bash
+npm run dev
+```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/register` - Register a new user
+- `POST /api/login` - Login user
+- `GET /api/me` - Get current user profile
+- `PUT /api/me` - Update user profile
+
+### Courses
+- `GET /api/courses` - Get all published courses
+- `GET /api/courses/:id` - Get single course
+- `POST /api/courses/teacher/course` - Create new course (Teacher)
+- `PUT /api/courses/teacher/course/:id` - Update course (Teacher)
+- `DELETE /api/courses/teacher/course/:id` - Delete course (Teacher)
+- `POST /api/courses/teacher/course/:id/section` - Add section to course (Teacher)
+- `GET /api/courses/teacher/courses` - Get teacher courses (Teacher)
+- `GET /api/courses/teacher/course/:id/students` - Get course students (Teacher)
+
+### Enrollments
+- `POST /api/enroll/:courseId` - Enroll in course (Student)
+- `DELETE /api/enroll/:courseId` - Unenroll from course (Student)
+- `GET /api/enroll/mycourses` - Get enrolled courses (Student)
+- `GET /api/enroll/progress/:courseId` - Get course progress (Student)
+- `POST /api/enroll/progress/:courseId/section/:sectionId/complete` - Complete section (Student)
+- `GET /api/enroll/certificate/:courseId` - Get course certificate (Student)
+
+### Admin
+- `GET /api/admin/users` - Get all users (Admin)
+- `GET /api/admin/users/:id` - Get single user (Admin)
+- `PUT /api/admin/users/:id` - Update user (Admin)
+- `DELETE /api/admin/users/:id` - Delete user (Admin)
+- `GET /api/admin/courses` - Get all courses (Admin)
+- `DELETE /api/admin/courses/:id` - Delete course (Admin)
+- `GET /api/admin/dashboard` - Get dashboard stats (Admin)
+
+### Certificates
+- `GET /api/certificates/:id/download` - Download certificate PDF (Private)
+- `GET /api/certificates/verify/:code` - Verify certificate (Public)
+
+## Usage
+
+### Creating an Admin User
+To create the first admin user, you can either:
+1. Register normally and manually update the user type in the database
+2. Use the registration endpoint with admin type (if allowed)
+
+### Course Creation Flow
+1. Teacher registers/logs in
+2. Creates a new course with basic information
+3. Adds course sections with content and videos
+4. Publishes the course for student enrollment
+
+### Student Learning Flow
+1. Student registers/logs in
+2. Browses available courses
+3. Enrolls in desired courses
+4. Accesses course content and tracks progress
+5. Completes sections and earns certificates
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support, email support@learnhub.com or create an issue in the repository.
+
+## Acknowledgments
+
+- Bootstrap for the UI framework
+- React community for the excellent documentation
+- MongoDB for the database solution
+- All contributors who helped build this platform

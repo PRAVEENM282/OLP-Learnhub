@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, ListGroup, Badge } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
-import { coursesAPI, uploadFile } from '../../services/api';
+import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Helmet } from 'react-helmet-async';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import toast from 'react-hot-toast';
 
 const AddSections = () => {
   const { id: courseId } = useParams();
@@ -33,12 +30,12 @@ const AddSections = () => {
   const fetchCourse = async () => {
     try {
       setLoading(true);
-      const response = await coursesAPI.getCourse(courseId);
+      const response = await api.get(`/courses/teacher/course/${courseId}`);
       setCourse(response.data.data);
       setSections(response.data.data.sections || []);
     } catch (error) {
       console.error('Error fetching course:', error);
-      toast.error('Failed to load course details');
+      alert('Failed to load course details');
     } finally {
       setLoading(false);
     }
@@ -66,12 +63,12 @@ const AddSections = () => {
     const maxSize = 100 * 1024 * 1024; // 100MB
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please select a valid video file (MP4, WebM, or OGG)');
+      alert('Please select a valid video file (MP4, WebM, or OGG)');
       return;
     }
 
     if (file.size > maxSize) {
-      toast.error('File size must be less than 100MB');
+      alert('File size must be less than 100MB');
       return;
     }
 
@@ -113,6 +110,20 @@ const AddSections = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const uploadFile = async (file, type) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+
+    const response = await api.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return response.data.data;
+  };
+
   const handleAddSection = async (e) => {
     e.preventDefault();
     
@@ -130,7 +141,7 @@ const AddSections = () => {
           videoUrl = uploadResponse.url;
         } catch (uploadError) {
           console.error('Upload error:', uploadError);
-          toast.error('Failed to upload video. Please try again.');
+          alert('Failed to upload video. Please try again.');
           setSaving(false);
           return;
         }
@@ -146,7 +157,7 @@ const AddSections = () => {
         order: sections.length + 1
       };
 
-      const response = await coursesAPI.addSection(courseId, sectionData);
+      const response = await api.post(`/courses/teacher/course/${courseId}/section`, sectionData);
       
       // Update local state
       setSections(response.data.data.sections);
@@ -162,11 +173,11 @@ const AddSections = () => {
         videoPreview: null
       });
       
-      toast.success('Section added successfully!');
+      alert('Section added successfully!');
       
     } catch (error) {
       console.error('Error adding section:', error);
-      toast.error(error.response?.data?.message || 'Failed to add section');
+      alert(error.response?.data?.message || 'Failed to add section');
     } finally {
       setSaving(false);
     }
@@ -183,12 +194,12 @@ const AddSections = () => {
       setSections(updatedSections);
       
       // Update course with new sections array
-      await coursesAPI.updateCourse(courseId, { sections: updatedSections });
+      await api.put(`/courses/teacher/course/${courseId}`, { sections: updatedSections });
       
-      toast.success('Section removed successfully!');
+      alert('Section removed successfully!');
     } catch (error) {
       console.error('Error removing section:', error);
-      toast.error('Failed to remove section');
+      alert('Failed to remove section');
       // Reload sections if error occurs
       fetchCourse();
     }
@@ -196,21 +207,17 @@ const AddSections = () => {
 
   const handlePublishCourse = async () => {
     if (sections.length === 0) {
-      toast.error('Please add at least one section before publishing');
+      alert('Please add at least one section before publishing');
       return;
     }
 
     try {
-      await coursesAPI.updateCourse(courseId, { 
-        isPublished: true,
-        status: 'published'
-      });
-      
-      toast.success('Course published successfully!');
+      await api.put(`/courses/teacher/course/${courseId}`, { isPublished: true });
+      alert('Course published successfully!');
       navigate('/teacher/courses');
     } catch (error) {
       console.error('Error publishing course:', error);
-      toast.error('Failed to publish course');
+      alert('Failed to publish course');
     }
   };
 
@@ -221,305 +228,228 @@ const AddSections = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading course details..." />;
+    return <LoadingSpinner text="Loading course..." />;
   }
 
   if (!course) {
     return (
-      <Container className="py-5">
-        <Alert variant="danger">
-          <Alert.Heading>Course Not Found</Alert.Heading>
-          <p>The course you're looking for doesn't exist or you don't have permission to access it.</p>
-        </Alert>
-      </Container>
+      <div className="container py-5">
+        <div className="text-center">
+          <h2 className="text-danger">Course Not Found</h2>
+          <p className="text-muted">The course you're looking for doesn't exist</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => navigate('/teacher/courses')}
+          >
+            Back to My Courses
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <>
-      <Helmet>
-        <title>Add Sections - {course.C_title} - Online Learning Platform</title>
-      </Helmet>
+    <div className="container py-4">
+      {/* Header */}
+      <div className="row mb-4">
+        <div className="col">
+          <h1 className="h2 mb-2">Add Course Sections</h1>
+          <p className="text-muted">
+            {course.C_title} - {sections.length} sections
+          </p>
+        </div>
+        <div className="col-auto">
+          <button
+            className="btn btn-outline-secondary"
+            onClick={() => navigate('/teacher/courses')}
+          >
+            <i className="fas fa-arrow-left me-2"></i>
+            Back to Courses
+          </button>
+        </div>
+      </div>
 
-      <Container className="py-5">
-        <Row className="mb-4">
-          <Col>
-            <h1 className="display-5 fw-bold mb-2">Add Course Sections</h1>
-            <p className="lead text-muted">
-              Build your course content by adding sections with videos and materials
-            </p>
-          </Col>
-        </Row>
+      <div className="row">
+        {/* Add Section Form */}
+        <div className="col-lg-8">
+          <div className="card">
+            <div className="card-header">
+              <h5 className="mb-0">Add New Section</h5>
+            </div>
+            <div className="card-body">
+              <form onSubmit={handleAddSection}>
+                <div className="row">
+                  <div className="col-md-8">
+                    <div className="mb-3">
+                      <label htmlFor="title" className="form-label">Section Title</label>
+                      <input
+                        type="text"
+                        className={`form-control ${errors.title ? 'is-invalid' : ''}`}
+                        id="title"
+                        name="title"
+                        value={currentSection.title}
+                        onChange={handleSectionChange}
+                        placeholder="Enter section title"
+                      />
+                      {errors.title && <div className="invalid-feedback">{errors.title}</div>}
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label htmlFor="duration" className="form-label">Duration (minutes)</label>
+                      <input
+                        type="number"
+                        className={`form-control ${errors.duration ? 'is-invalid' : ''}`}
+                        id="duration"
+                        name="duration"
+                        value={currentSection.duration}
+                        onChange={handleSectionChange}
+                        min="0"
+                      />
+                      {errors.duration && <div className="invalid-feedback">{errors.duration}</div>}
+                    </div>
+                  </div>
+                </div>
 
-        <Row>
-          <Col lg={8}>
-            {/* Course Info */}
-            <Card className="border-0 shadow-sm mb-4">
-              <Card.Body className="p-4">
-                <div className="d-flex align-items-center mb-3">
-                  <img
-                    src={course.C_thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=80&h=60&fit=crop'}
-                    alt={course.C_title}
-                    className="rounded me-3"
-                    style={{ width: '80px', height: '60px', objectFit: 'cover' }}
+                <div className="mb-3">
+                  <label htmlFor="description" className="form-label">Description</label>
+                  <textarea
+                    className={`form-control ${errors.description ? 'is-invalid' : ''}`}
+                    id="description"
+                    name="description"
+                    rows="3"
+                    value={currentSection.description}
+                    onChange={handleSectionChange}
+                    placeholder="Brief description of this section"
+                  ></textarea>
+                  {errors.description && <div className="invalid-feedback">{errors.description}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="content" className="form-label">Content</label>
+                  <textarea
+                    className={`form-control ${errors.content ? 'is-invalid' : ''}`}
+                    id="content"
+                    name="content"
+                    rows="6"
+                    value={currentSection.content}
+                    onChange={handleSectionChange}
+                    placeholder="Detailed content for this section..."
+                  ></textarea>
+                  {errors.content && <div className="invalid-feedback">{errors.content}</div>}
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="videoUrl" className="form-label">Video URL (optional)</label>
+                  <input
+                    type="url"
+                    className="form-control"
+                    id="videoUrl"
+                    name="videoUrl"
+                    value={currentSection.videoUrl}
+                    onChange={handleSectionChange}
+                    placeholder="https://www.youtube.com/watch?v=..."
                   />
-                  <div>
-                    <h4 className="fw-bold mb-1">{course.C_title}</h4>
-                    <p className="text-muted mb-0">by {course.C_educator}</p>
-                  </div>
                 </div>
-                <div className="d-flex gap-3">
-                  <Badge bg="primary">{course.C_level}</Badge>
-                  <Badge bg="secondary">{sections.length} sections</Badge>
-                  <Badge bg={course.isPublished ? 'success' : 'warning'}>
-                    {course.isPublished ? 'Published' : 'Draft'}
-                  </Badge>
+
+                <div className="mb-3">
+                  <label htmlFor="videoFile" className="form-label">Or Upload Video File</label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    id="videoFile"
+                    accept="video/*"
+                    onChange={handleVideoChange}
+                  />
+                  <small className="text-muted">
+                    Supported formats: MP4, WebM, OGG (max 100MB)
+                  </small>
                 </div>
-              </Card.Body>
-            </Card>
 
-            {/* Add Section Form */}
-            <Card className="border-0 shadow-sm mb-4">
-              <Card.Body className="p-4">
-                <h4 className="fw-bold mb-4">
-                  <i className="fas fa-plus-circle me-2 text-primary"></i>
-                  Add New Section
-                </h4>
-                
-                <Form onSubmit={handleAddSection}>
-                  <Row>
-                    <Col md={8}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Section Title *</Form.Label>
-                        <Form.Control
-                          type="text"
-                          name="title"
-                          value={currentSection.title}
-                          onChange={handleSectionChange}
-                          placeholder="Enter section title"
-                          isInvalid={!!errors.title}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                          {errors.title}
-                        </Form.Control.Feedback>
-                      </Form.Group>
-                    </Col>
-                    <Col md={4}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Duration (minutes)</Form.Label>
-                        <Form.Control
-                          type="number"
-                          name="duration"
-                          value={currentSection.duration}
-                          onChange={handleSectionChange}
-                          min="0"
-                          placeholder="0"
-                          isInvalid={!!errors.duration}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                          {errors.duration}
-                        </Form.Control.Feedback>
-                      </Form.Group>
-                    </Col>
-                  </Row>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Section Description *</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={2}
-                      name="description"
-                      value={currentSection.description}
-                      onChange={handleSectionChange}
-                      placeholder="Brief description of what this section covers"
-                      isInvalid={!!errors.description}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.description}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Section Content *</Form.Label>
-                    <Form.Control
-                      as="textarea"
-                      rows={4}
-                      name="content"
-                      value={currentSection.content}
-                      onChange={handleSectionChange}
-                      placeholder="Detailed content, notes, or instructions for this section"
-                      isInvalid={!!errors.content}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.content}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-
-                  <Form.Group className="mb-3">
-                    <Form.Label>Video Upload</Form.Label>
-                    <Form.Control
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoChange}
-                      className="mb-2"
-                    />
-                    <Form.Text className="text-muted">
-                      Supported formats: MP4, WebM, OGG. Max size: 100MB
-                    </Form.Text>
-                    
-                    {currentSection.videoPreview && (
-                      <div className="mt-3">
-                        <video
-                          src={currentSection.videoPreview}
-                          controls
-                          className="img-fluid rounded"
-                          style={{ maxHeight: '200px' }}
-                        />
-                      </div>
-                    )}
-                  </Form.Group>
-
-                  <Form.Group className="mb-4">
-                    <Form.Label>Video URL (Alternative)</Form.Label>
-                    <Form.Control
-                      type="url"
-                      name="videoUrl"
-                      value={currentSection.videoUrl}
-                      onChange={handleSectionChange}
-                      placeholder="https://example.com/video.mp4"
-                    />
-                    <Form.Text className="text-muted">
-                      Use this if you prefer to host videos externally
-                    </Form.Text>
-                  </Form.Group>
-
-                  <div className="d-flex gap-3">
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      disabled={saving}
+                {currentSection.videoPreview && (
+                  <div className="mb-3">
+                    <label className="form-label">Video Preview</label>
+                    <video
+                      controls
+                      className="w-100"
+                      style={{ maxHeight: '200px' }}
                     >
-                      {saving ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                          Adding Section...
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-plus me-2"></i>
-                          Add Section
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline-secondary"
-                      onClick={() => {
-                        setCurrentSection({
-                          title: '',
-                          description: '',
-                          content: '',
-                          videoUrl: '',
-                          duration: 0,
-                          videoFile: null,
-                          videoPreview: null
-                        });
-                      }}
-                    >
-                      Clear Form
-                    </Button>
+                      <source src={currentSection.videoPreview} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
                   </div>
-                </Form>
-              </Card.Body>
-            </Card>
-          </Col>
-
-          {/* Sidebar */}
-          <Col lg={4}>
-            {/* Course Sections List */}
-            <Card className="border-0 shadow-sm mb-4">
-              <Card.Body className="p-4">
-                <h5 className="fw-bold mb-3">
-                  <i className="fas fa-list me-2 text-primary"></i>
-                  Course Sections ({sections.length})
-                </h5>
-                
-                {sections.length === 0 ? (
-                  <div className="text-center py-4">
-                    <i className="fas fa-folder-open text-muted mb-3" style={{ fontSize: '2rem' }}></i>
-                    <p className="text-muted mb-0">No sections added yet</p>
-                  </div>
-                ) : (
-                  <ListGroup variant="flush">
-                    {sections.map((section, index) => (
-                      <ListGroup.Item key={index} className="border-0 px-0 py-2">
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div className="flex-grow-1">
-                            <h6 className="fw-bold mb-1">{section.title}</h6>
-                            <p className="text-muted small mb-1">{section.description}</p>
-                            <div className="d-flex gap-2">
-                              {section.duration > 0 && (
-                                <Badge bg="light" text="dark" className="small">
-                                  {formatDuration(section.duration)}
-                                </Badge>
-                              )}
-                              {section.videoUrl && (
-                                <Badge bg="success" className="small">
-                                  <i className="fas fa-video me-1"></i>
-                                  Video
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => handleRemoveSection(index)}
-                          >
-                            <i className="fas fa-trash"></i>
-                          </Button>
-                        </div>
-                      </ListGroup.Item>
-                    ))}
-                  </ListGroup>
                 )}
-              </Card.Body>
-            </Card>
 
-            {/* Actions */}
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="p-4">
-                <h5 className="fw-bold mb-3">Actions</h5>
-                <div className="d-grid gap-2">
-                  <Button
-                    variant="success"
+                <div className="d-flex gap-2">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-plus me-2"></i>
+                        Add Section
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success"
                     onClick={handlePublishCourse}
                     disabled={sections.length === 0}
                   >
                     <i className="fas fa-globe me-2"></i>
                     Publish Course
-                  </Button>
-                  <Button
-                    variant="outline-primary"
-                    onClick={() => navigate(`/teacher/course/${courseId}/edit`)}
-                  >
-                    <i className="fas fa-edit me-2"></i>
-                    Edit Course Details
-                  </Button>
-                  <Button
-                    variant="outline-secondary"
-                    onClick={() => navigate('/teacher/courses')}
-                  >
-                    <i className="fas fa-arrow-left me-2"></i>
-                    Back to My Courses
-                  </Button>
+                  </button>
                 </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
-    </>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        {/* Sections List */}
+        <div className="col-lg-4">
+          <div className="card">
+            <div className="card-header">
+              <h5 className="mb-0">Course Sections ({sections.length})</h5>
+            </div>
+            <div className="card-body">
+              {sections.length === 0 ? (
+                <p className="text-muted text-center py-3">
+                  No sections added yet. Add your first section to get started.
+                </p>
+              ) : (
+                <div className="list-group list-group-flush">
+                  {sections.map((section, index) => (
+                    <div key={section._id || index} className="list-group-item d-flex justify-content-between align-items-start">
+                      <div className="flex-grow-1">
+                        <h6 className="mb-1">Section {index + 1}: {section.title}</h6>
+                        <p className="mb-1 text-muted small">{section.description}</p>
+                        <small className="text-muted">
+                          {formatDuration(section.duration || 0)}
+                        </small>
+                      </div>
+                      <button
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => handleRemoveSection(index)}
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

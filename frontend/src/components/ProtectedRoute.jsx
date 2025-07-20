@@ -1,28 +1,32 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { isAuthenticated, loading, userType } = useAuth();
-  const location = useLocation();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner text="Loading..." />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(userType)) {
-    // Redirect to appropriate dashboard based on user role
-    let redirectPath = '/';
-    if (userType === 'admin') redirectPath = '/admin/dashboard';
-    else if (userType === 'teacher') redirectPath = '/teacher/dashboard';
-    else if (userType === 'student') redirectPath = '/student/dashboard';
-    
-    return <Navigate to={redirectPath} replace />;
+  // Check if user has required role
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.type)) {
+    // Redirect based on user type
+    switch (user?.type) {
+      case 'student':
+        return <Navigate to="/student/dashboard" replace />;
+      case 'teacher':
+        return <Navigate to="/teacher/dashboard" replace />;
+      case 'admin':
+        return <Navigate to="/admin/dashboard" replace />;
+      default:
+        return <Navigate to="/" replace />;
+    }
   }
 
   return children;

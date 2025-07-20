@@ -116,7 +116,10 @@ const courseSchema = new mongoose.Schema({
 
 // Virtual for total duration
 courseSchema.virtual('totalDuration').get(function() {
-  return this.sections.reduce((total, section) => total + section.duration, 0);
+  if (!this.sections || !Array.isArray(this.sections)) {
+    return 0;
+  }
+  return this.sections.reduce((total, section) => total + (section.duration || 0), 0);
 });
 
 // Ensure virtual fields are serialized

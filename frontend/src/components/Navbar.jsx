@@ -1,162 +1,203 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Navbar, Nav, Container, Button, Dropdown } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import { Helmet } from 'react-helmet-async';
 
-const MainNavbar = () => {
-  const { user, isAuthenticated, logout, isAdmin, isTeacher, isStudent } = useAuth();
+const Navbar = () => {
+  const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [expanded, setExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/');
-    setExpanded(false);
   };
 
-  const getDashboardLink = () => {
-    if (isAdmin()) return '/admin/dashboard';
-    if (isTeacher()) return '/teacher/dashboard';
-    if (isStudent()) return '/student/dashboard';
-    return '/';
+  const getNavLinks = () => {
+    if (!isAuthenticated) {
+      return [
+        { to: '/', label: 'Home' },
+        { to: '/login', label: 'Login' },
+        { to: '/register', label: 'Register' }
+      ];
+    }
+
+    switch (user?.type) {
+      case 'student':
+        return [
+          { to: '/student/dashboard', label: 'Dashboard' },
+          { to: '/student/courses', label: 'My Courses' }
+        ];
+      case 'teacher':
+        return [
+          { to: '/teacher/dashboard', label: 'Dashboard' },
+          { to: '/teacher/courses', label: 'My Courses' },
+          { to: '/teacher/course/create', label: 'Create Course' }
+        ];
+      case 'admin':
+        return [
+          { to: '/admin/dashboard', label: 'Dashboard' },
+          { to: '/admin/users', label: 'Users' },
+          { to: '/admin/courses', label: 'Courses' },
+          { to: '/admin/enrollments', label: 'Enrollments' }
+        ];
+      default:
+        return [];
+    }
   };
+
+  const getProfileMenuItems = () => {
+    const baseItems = [
+      {
+        label: 'Profile',
+        icon: 'fas fa-user',
+        action: () => navigate('/profile')
+      },
+      {
+        label: 'Settings',
+        icon: 'fas fa-cog',
+        action: () => navigate('/settings')
+      },
+      {
+        label: 'Notifications',
+        icon: 'fas fa-bell',
+        action: () => navigate('/notifications')
+      }
+    ];
+
+    // Add role-specific items
+    if (user?.type === 'student') {
+      baseItems.push({
+        label: 'Certificates',
+        icon: 'fas fa-certificate',
+        action: () => navigate('/student/certificates')
+      });
+    } else if (user?.type === 'teacher') {
+      baseItems.push({
+        label: 'Analytics',
+        icon: 'fas fa-chart-line',
+        action: () => navigate('/teacher/analytics')
+      });
+    } else if (user?.type === 'admin') {
+      baseItems.push({
+        label: 'System Settings',
+        icon: 'fas fa-tools',
+        action: () => navigate('/admin/settings')
+      });
+    }
+
+    return baseItems;
+  };
+
+  const navLinks = getNavLinks();
+  const profileMenuItems = getProfileMenuItems();
 
   return (
-    <>
-      <Helmet>
-        <title>Online Learning Platform</title>
-      </Helmet>
-      
-      <Navbar 
-        bg="white" 
-        expand="lg" 
-        className="shadow-sm"
-        expanded={expanded}
-        onToggle={() => setExpanded(!expanded)}
-      >
-        <Container>
-          <Navbar.Brand as={Link} to="/" className="fw-bold text-primary">
-            <i className="fas fa-graduation-cap me-2"></i>
-            OLP Platform
-          </Navbar.Brand>
-          
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="me-auto">
-              <Nav.Link 
-                as={Link} 
-                to="/" 
-                className={location.pathname === '/' ? 'active' : ''}
-                onClick={() => setExpanded(false)}
-              >
-                Home
-              </Nav.Link>
-              <Nav.Link 
-                as={Link} 
-                to="/courses" 
-                className={location.pathname === '/courses' ? 'active' : ''}
-                onClick={() => setExpanded(false)}
-              >
-                Courses
-              </Nav.Link>
-              {isAuthenticated && (
-                <>
-                  {isStudent() && (
-                    <Nav.Link 
-                      as={Link} 
-                      to="/student/mycourses" 
-                      className={location.pathname.includes('/student/mycourses') ? 'active' : ''}
-                      onClick={() => setExpanded(false)}
-                    >
-                      My Courses
-                    </Nav.Link>
-                  )}
-                  {isTeacher() && (
-                    <Nav.Link 
-                      as={Link} 
-                      to="/teacher/courses" 
-                      className={location.pathname.includes('/teacher/courses') ? 'active' : ''}
-                      onClick={() => setExpanded(false)}
-                    >
-                      My Courses
-                    </Nav.Link>
-                  )}
-                  {isAdmin() && (
-                    <Nav.Link 
-                      as={Link} 
-                      to="/admin/users" 
-                      className={location.pathname.includes('/admin') ? 'active' : ''}
-                      onClick={() => setExpanded(false)}
-                    >
-                      Admin Panel
-                    </Nav.Link>
-                  )}
-                </>
-              )}
-            </Nav>
-            
-            <Nav>
-              {isAuthenticated ? (
-                <Dropdown align="end">
-                  <Dropdown.Toggle variant="outline-primary" id="dropdown-basic">
-                    <i className="fas fa-user me-2"></i>
-                    {user?.name}
-                  </Dropdown.Toggle>
+    <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div className="container">
+        <Link className="navbar-brand fw-bold" to="/">
+          <i className="fas fa-graduation-cap me-2"></i>
+          LearnHub
+        </Link>
 
-                  <Dropdown.Menu>
-                    <Dropdown.Item as={Link} to={getDashboardLink()}>
-                      <i className="fas fa-tachometer-alt me-2"></i>
-                      Dashboard
-                    </Dropdown.Item>
-                    <Dropdown.Item as={Link} to="/profile">
-                      <i className="fas fa-user-edit me-2"></i>
-                      Profile
-                    </Dropdown.Item>
-                    {isTeacher() && (
-                      <Dropdown.Item as={Link} to="/teacher/course/create">
-                        <i className="fas fa-plus-circle me-2"></i>
-                        Create Course
-                      </Dropdown.Item>
-                    )}
-                    <Dropdown.Item as={Link} to="/settings">
-                      <i className="fas fa-cog me-2"></i>
-                      Settings
-                    </Dropdown.Item>
-                    <Dropdown.Divider />
-                    <Dropdown.Item onClick={handleLogout}>
+        <button
+          className="navbar-toggler"
+          type="button"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+        >
+          <span className="navbar-toggler-icon"></span>
+        </button>
+
+        <div className={`collapse navbar-collapse ${isMenuOpen ? 'show' : ''}`}>
+          <ul className="navbar-nav me-auto">
+            {navLinks.map((link) => (
+              <li key={link.to} className="nav-item">
+                <Link
+                  className={`nav-link ${location.pathname === link.to ? 'active' : ''}`}
+                  to={link.to}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <ul className="navbar-nav">
+            {isAuthenticated ? (
+              <li className="nav-item dropdown">
+                <a
+                  className="nav-link dropdown-toggle d-flex align-items-center"
+                  href="#"
+                  role="button"
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  aria-expanded={isProfileDropdownOpen}
+                >
+                  <div className="avatar me-2">
+                    <div className="bg-light rounded-circle d-flex align-items-center justify-content-center" 
+                         style={{ width: '32px', height: '32px' }}>
+                      <span className="text-primary fw-bold">
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                  <span>{user?.name}</span>
+                </a>
+                <ul className={`dropdown-menu dropdown-menu-end ${isProfileDropdownOpen ? 'show' : ''}`}>
+                  <li>
+                    <div className="dropdown-header">
+                      <div className="fw-bold">{user?.name}</div>
+                      <small className="text-muted">{user?.email}</small>
+                    </div>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  
+                  {profileMenuItems.map((item, index) => (
+                    <li key={index}>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          item.action();
+                          setIsProfileDropdownOpen(false);
+                          setIsMenuOpen(false);
+                        }}
+                      >
+                        <i className={`${item.icon} me-2`}></i>
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                  
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <button
+                      className="dropdown-item text-danger"
+                      onClick={() => {
+                        handleLogout();
+                        setIsProfileDropdownOpen(false);
+                        setIsMenuOpen(false);
+                      }}
+                    >
                       <i className="fas fa-sign-out-alt me-2"></i>
                       Logout
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
-              ) : (
-                <div className="d-flex gap-2">
-                  <Button 
-                    as={Link} 
-                    to="/login" 
-                    variant="outline-primary"
-                    onClick={() => setExpanded(false)}
-                  >
-                    Login
-                  </Button>
-                  <Button 
-                    as={Link} 
-                    to="/register" 
-                    variant="primary"
-                    onClick={() => setExpanded(false)}
-                  >
-                    Register
-                  </Button>
-                </div>
-              )}
-            </Nav>
-          </Navbar.Collapse>
-        </Container>
-      </Navbar>
-    </>
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            ) : (
+              <li className="nav-item">
+                <Link className="nav-link" to="/login">
+                  <i className="fas fa-sign-in-alt me-2"></i>
+                  Login
+                </Link>
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+    </nav>
   );
 };
 
-export default MainNavbar; 
+export default Navbar; 

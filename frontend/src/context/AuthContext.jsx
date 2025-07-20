@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import jwtDecode from 'jwt-decode';
-import toast from 'react-hot-toast';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -9,48 +9,53 @@ const initialState = {
   token: localStorage.getItem('token'),
   isAuthenticated: false,
   loading: true,
-  userType: null,
+  error: null
 };
 
 const authReducer = (state, action) => {
   switch (action.type) {
-    case 'LOGIN_SUCCESS':
+    case 'AUTH_START':
+      return {
+        ...state,
+        loading: true,
+        error: null
+      };
+    case 'AUTH_SUCCESS':
       return {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
         isAuthenticated: true,
         loading: false,
-        userType: action.payload.user.type,
+        error: null
       };
-    case 'LOGIN_FAIL':
-    case 'LOGOUT':
-      localStorage.removeItem('token');
+    case 'AUTH_FAIL':
       return {
         ...state,
         user: null,
         token: null,
         isAuthenticated: false,
         loading: false,
-        userType: null,
+        error: action.payload
       };
-    case 'LOAD_USER':
+    case 'LOGOUT':
       return {
         ...state,
-        user: action.payload,
-        isAuthenticated: true,
+        user: null,
+        token: null,
+        isAuthenticated: false,
         loading: false,
-        userType: action.payload.type,
+        error: null
       };
     case 'UPDATE_USER':
       return {
         ...state,
-        user: action.payload,
+        user: action.payload
       };
-    case 'SET_LOADING':
+    case 'CLEAR_ERROR':
       return {
         ...state,
-        loading: action.payload,
+        error: null
       };
     default:
       return state;
@@ -60,202 +65,148 @@ const authReducer = (state, action) => {
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Check if token is valid on app load
-  useEffect(() => {
-    const checkToken = async () => {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        try {
-          const decoded = jwtDecode(token);
-          const currentTime = Date.now() / 1000;
-          
-          if (decoded.exp < currentTime) {
-            // Token expired
-            dispatch({ type: 'LOGOUT' });
-            toast.error('Session expired. Please login again.');
-          } else {
-            // Token is valid, load user data
-            await loadUser();
-          }
-        } catch (error) {
-          console.error('Token validation error:', error);
-          dispatch({ type: 'LOGOUT' });
-        }
-      } else {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    };
-
-    checkToken();
-  }, []);
-
-  // Load user data
-  const loadUser = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await fetch('/api/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        dispatch({ type: 'LOAD_USER', payload: data.data });
-      } else {
-        dispatch({ type: 'LOGOUT' });
-      }
-    } catch (error) {
-      console.error('Load user error:', error);
-      dispatch({ type: 'LOGOUT' });
+  // Set auth token header
+  const setAuthToken = (token) => {
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      localStorage.setItem('token', token);
+    } else {
+      delete api.defaults.headers.common['Authorization'];
+      localStorage.removeItem('token');
     }
   };
 
-  // Login user
-  const login = async (email, password) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+  // Load user from token
+  const loadUser = async () => {
+    if (state.token) {
+      try {
+        setAuthToken(state.token);
+        
+        // Check if token is expired
+        const decoded = jwtDecode(state.token);
+        const currentTime = Date.now() / 1000;
+        
+        if (decoded.exp < currentTime) {
+          dispatch({ type: 'LOGOUT' });
+          setAuthToken(null);
+          return;
+        }
 
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.data.token);
+        const response = await api.get('/me');
         dispatch({
-          type: 'LOGIN_SUCCESS',
+          type: 'AUTH_SUCCESS',
           payload: {
-            user: data.data,
-            token: data.data.token,
-          },
+            user: response.data.data,
+            token: state.token
+          }
         });
-        toast.success(`Welcome back, ${data.data.name}!`);
-        return { success: true };
-      } else {
-        toast.error(data.message || 'Login failed');
-        dispatch({ type: 'LOGIN_FAIL' });
-        return { success: false, message: data.message };
+      } catch (error) {
+        dispatch({ type: 'LOGOUT' });
+        setAuthToken(null);
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Network error. Please try again.');
-      dispatch({ type: 'LOGIN_FAIL' });
-      return { success: false, message: 'Network error' };
+    } else {
+      dispatch({ type: 'LOGOUT' });
     }
   };
 
   // Register user
   const register = async (userData) => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'AUTH_START' });
+      const response = await api.post('/register', userData);
       
-      const response = await fetch('/api/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
+      const { token, ...user } = response.data.data;
+      setAuthToken(token);
+      
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: { user, token }
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.data.token);
-        dispatch({
-          type: 'LOGIN_SUCCESS',
-          payload: {
-            user: data.data,
-            token: data.data.token,
-          },
-        });
-        toast.success(`Welcome to OLP, ${data.data.name}!`);
-        return { success: true };
-      } else {
-        toast.error(data.message || 'Registration failed');
-        dispatch({ type: 'LOGIN_FAIL' });
-        return { success: false, message: data.message };
-      }
+      
+      return { success: true };
     } catch (error) {
-      console.error('Registration error:', error);
-      toast.error('Network error. Please try again.');
-      dispatch({ type: 'LOGIN_FAIL' });
-      return { success: false, message: 'Network error' };
+      const message = error.response?.data?.message || 'Registration failed';
+      dispatch({
+        type: 'AUTH_FAIL',
+        payload: message
+      });
+      return { success: false, error: message };
+    }
+  };
+
+  // Login user
+  const login = async (credentials) => {
+    try {
+      console.log('Login attempt with credentials:', { email: credentials.email });
+      dispatch({ type: 'AUTH_START' });
+      const response = await api.post('/login', credentials);
+      
+      console.log('Login response:', response.data);
+      
+      const { token, ...user } = response.data.data;
+      setAuthToken(token);
+      
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: { user, token }
+      });
+      
+      console.log('Login successful, user:', user);
+      return { success: true };
+    } catch (error) {
+      console.error('Login error:', error);
+      console.error('Login error response:', error.response?.data);
+      const message = error.response?.data?.message || 'Login failed';
+      dispatch({
+        type: 'AUTH_FAIL',
+        payload: message
+      });
+      return { success: false, error: message };
     }
   };
 
   // Logout user
   const logout = () => {
     dispatch({ type: 'LOGOUT' });
-    toast.success('Logged out successfully');
+    setAuthToken(null);
   };
 
   // Update user profile
-  const updateProfile = async (profileData) => {
+  const updateProfile = async (userData) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/me', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(profileData),
+      const response = await api.put('/me', userData);
+      dispatch({
+        type: 'UPDATE_USER',
+        payload: response.data.data
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        dispatch({ type: 'UPDATE_USER', payload: data.data });
-        toast.success('Profile updated successfully');
-        return { success: true };
-      } else {
-        toast.error(data.message || 'Update failed');
-        return { success: false, message: data.message };
-      }
+      return { success: true };
     } catch (error) {
-      console.error('Update profile error:', error);
-      toast.error('Network error. Please try again.');
-      return { success: false, message: 'Network error' };
+      const message = error.response?.data?.message || 'Profile update failed';
+      return { success: false, error: message };
     }
   };
 
-  // Check if user has specific role
-  const hasRole = (role) => {
-    return state.userType === role;
+  // Clear error
+  const clearError = () => {
+    dispatch({ type: 'CLEAR_ERROR' });
   };
 
-  // Check if user is admin
-  const isAdmin = () => hasRole('admin');
-
-  // Check if user is teacher
-  const isTeacher = () => hasRole('teacher');
-
-  // Check if user is student
-  const isStudent = () => hasRole('student');
+  // Load user on mount
+  useEffect(() => {
+    loadUser();
+  }, []);
 
   const value = {
     user: state.user,
     token: state.token,
     isAuthenticated: state.isAuthenticated,
     loading: state.loading,
-    userType: state.userType,
-    login,
+    error: state.error,
     register,
+    login,
     logout,
     updateProfile,
-    hasRole,
-    isAdmin,
-    isTeacher,
-    isStudent,
+    clearError
   };
 
   return (
