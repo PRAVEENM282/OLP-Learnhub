@@ -220,3 +220,5 @@ For support, email support@learnhub.com or create an issue in the repository.
 - React community for the excellent documentation
 - MongoDB for the database solution
 - All contributors who helped build this platform
+
+- Doc and Video link :- https://drive.google.com/drive/folders/1SnXACHy5lYS20wvNo3UjgLRQ7YoC4Qm4?usp=drive_link
